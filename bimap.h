@@ -38,10 +38,10 @@ struct bimap {
     bimap() noexcept;
 
     // Конструкторы от других и присваивания
-    bimap(bimap const& other) = delete;
+    bimap(bimap const& other);
     bimap(bimap&& other) noexcept;
 
-    bimap& operator=(bimap const& other) = delete;
+    bimap& operator=(bimap const& other);
     bimap& operator=(bimap&& other) noexcept;
 
     // Деструктор. Вызывается при удалении объектов bimap.
@@ -55,7 +55,7 @@ struct bimap {
     left_iterator insert(left_t const& left, right_t const& right);
     left_iterator insert(left_t const& left, right_t&& right);
     left_iterator insert(left_t&& left, right_t const& right);
-    left_iterator insert(left_t&& left, righ_t&& right);
+    left_iterator insert(left_t&& left, right_t&& right);
 
     // Удаляет элемент и соответствующий ему парный.
     // erase невалидного итератора неопределен.
@@ -70,6 +70,11 @@ struct bimap {
     right_iterator erase_right(right_iterator it);
     bool erase_right(right_t const& right);
 
+    // erase от ренжа, удаляет [first, last), возвращает итератор на последний
+    // элемент за удаленной последовательностью
+    left_iterator erase_left(left_iterator first, left_iterator last);
+    right_iterator erase_right(right_iterator first, right_iterator last);
+
     // Возвращает итератор по элементу. Если не найден - соответствующий end()
     left_iterator  find_left (left_t  const& left)  const;
     right_iterator find_right(right_t const& right) const;
@@ -79,6 +84,8 @@ struct bimap {
     right_t const& at_left(left_t const& key) const;
     left_t const& at_right(right_t const& key) const;
 
+    // Возвращает противоположный элемент по элементу
+    // Если элемента не существует отдает дефолтное значение
     right_t at_left_or_default(left_t const& key) const;
     left_t at_right_or_default(right_t const& key) const;
 
@@ -91,14 +98,14 @@ struct bimap {
     right_iterator lower_bound_right(const right_t& left) const;
     right_iterator upper_bound_right(const right_t& left) const;
 
-    // Возващает итератор на минимальный по величине left.
+    // Возващает итератор на минимальный по порядку left.
     left_iterator begin_left() const;
-    // Возващает итератор на следующий за последним по величине left.
+    // Возващает итератор на следующий за последним по порядку left.
     left_iterator end_left() const;
 
-    // Возващает итератор на минимальный по величине right.
+    // Возващает итератор на минимальный по порядку right.
     right_iterator begin_right() const;
-    // Возващает итератор на следующий за последним по величине right.
+    // Возващает итератор на следующий за последним по порядку right.
     right_iterator end_right() const;
 
     // Проверка на пустоту
@@ -110,10 +117,4 @@ struct bimap {
     // операторы сравнения
     friend bool operator==(bimap const& a, bimap const& b);
     friend bool operator!=(bimap const& a, bimap const& b);
-    // операторы >, < ???????? (лексикографическое сравнение)
-
-    // ==== как бонус если делать нормально ====
-    // erase от ренжа
-    left_iterator erase_left(left_iterator first, left_iterator last);
-    right_iterator erase_right(right_iterator first, right_iterator last);
 };
