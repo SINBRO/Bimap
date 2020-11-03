@@ -144,9 +144,9 @@ TEST(bimap, erase_value) {
 
   b.insert(111, 222);
   b.insert(333, 444);
-  EXPECT_EQ(b.erase_left(111), 1);
+  EXPECT_TRUE(b.erase_left(111));
   EXPECT_EQ(b.size(), 1);
-  EXPECT_EQ(b.erase_right(333333), 0);
+  EXPECT_FALSE(b.erase_right(333333));
   EXPECT_EQ(b.size(), 1);
 }
 
