@@ -38,7 +38,8 @@ struct bimap {
   };
 
   // Создает bimap не содержащий ни одной пары.
-  bimap() noexcept;
+  bimap(CompareLeft compare_left = CompareLeft(),
+        CompareRight compare_right = CompareRight()) noexcept;
 
   // Конструкторы от других и присваивания
   bimap(bimap const &other);
@@ -92,8 +93,8 @@ struct bimap {
   // сторону кладет дефолтный элемент, ссылку на который и возвращает
   // Если дефолтный элемент уже лежит в противоположной паре - должен поменять
   // соответствующий ему элемент на запрашиваемый (смотри тесты)
-  right_t const& at_left_or_default(left_t const &key);
-  left_t const& at_right_or_default(right_t const &key);
+  right_t const &at_left_or_default(left_t const &key);
+  left_t const &at_right_or_default(right_t const &key);
 
   // lower и upper bound'ы по каждой стороне
   // Возвращают итераторы на соответствующие элементы

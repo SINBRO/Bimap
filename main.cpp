@@ -47,6 +47,30 @@ TEST(bimap, custom_comparator) {
   }
 }
 
+struct pizdec_compare {
+  int parameter = 0;
+  pizdec_compare() = default;
+  explicit pizdec_compare(int p) : parameter(p) {}
+  bool operator()(int a, int b) const { return a - parameter < b; }
+};
+
+TEST(bimap, custom_parametrized_comparator) {
+  bimap<int, int, pizdec_compare, pizdec_compare> b(pizdec_compare(10));
+  b.insert(0, 10);
+  b.insert(2, 0);
+  b.insert(3, 100);
+  b.insert(1000, 42);
+
+  std::vector<int> correct_left = {3, 2, 0, 1000};
+  std::vector<int> correct_right = {0, 10, 42, 100};
+  auto lit = b.begin_left();
+  auto rit = b.begin_right();
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(*lit++, correct_left[i]);
+    EXPECT_EQ(*rit++, correct_right[i]);
+  }
+}
+
 TEST(bimap, copies) {
   bimap<int, int> b;
   b.insert(3, 4);
