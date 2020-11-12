@@ -94,6 +94,27 @@ TEST(bimap, at) {
   EXPECT_EQ(b.at_right(3), 4);
 }
 
+TEST(bimap, at_or_default) {
+  bimap<int, int> b;
+  b.insert(4, 2);
+
+  EXPECT_EQ(b.at_left_or_default(5), 0);
+  EXPECT_EQ(b.at_right(0), 5);
+
+  EXPECT_EQ(b.at_right_or_default(1), 0);
+  EXPECT_EQ(b.at_left(0), 1);
+
+  // b has (5, 0)
+  EXPECT_EQ(b.at_left_or_default(42), 0);
+  // (5, 0) is replaced with (42, 0)
+  EXPECT_EQ(b.at_right(0), 42);
+
+  // b has (0, 1)
+  EXPECT_EQ(b.at_right_or_default(1000), 0);
+  // (0, 1) is replaced with (0, 1000)
+  EXPECT_EQ(b.at_left(0), 1000);
+}
+
 TEST(bimap, find) {
   bimap<int, int> b;
   b.insert(3, 4);

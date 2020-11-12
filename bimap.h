@@ -88,9 +88,12 @@ struct bimap {
   left_t const &at_right(right_t const &key) const;
 
   // Возвращает противоположный элемент по элементу
-  // Если элемента не существует отдает дефолтное значение
-  right_t at_left_or_default(left_t const &key) const;
-  left_t at_right_or_default(right_t const &key) const;
+  // Если элемента не существует, добавляет его в bimap и на противоположную
+  // сторону кладет дефолтный элемент, ссылку на который и возвращает
+  // Если дефолтный элемент уже лежит в противоположной паре - должен поменять
+  // соответствующий ему элемент на запрашиваемый (смотри тесты)
+  right_t const& at_left_or_default(left_t const &key);
+  left_t const& at_right_or_default(right_t const &key);
 
   // lower и upper bound'ы по каждой стороне
   // Возвращают итераторы на соответствующие элементы
