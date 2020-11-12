@@ -47,22 +47,42 @@ TEST(bimap, custom_comparator) {
   }
 }
 
-struct pizdec_compare {
-  int parameter = 0;
-  pizdec_compare() = default;
-  explicit pizdec_compare(int p) : parameter(p) {}
-  bool operator()(int a, int b) const { return a - parameter < b; }
+struct vector_compare {
+  using vec = std::pair<int, int>;
+  enum distance_type { euclidean, manhattan };
+
+  vector_compare() = default;
+  explicit vector_compare(distance_type p) : type(p) {}
+
+  bool operator()(vec a, vec b) const {
+    if (type == euclidean) {
+      return euc(a) < euc(b);
+    } else {
+      return man(a) < man(b);
+    }
+  }
+
+private:
+  static double euc(vec x) {
+    return sqrt(x.first * x.first + x.second * x.second);
+  }
+
+  static double man(vec x) { return abs(x.first) + abs(x.second); }
+
+  distance_type type;
 };
 
 TEST(bimap, custom_parametrized_comparator) {
-  bimap<int, int, pizdec_compare, pizdec_compare> b(pizdec_compare(10));
-  b.insert(0, 10);
-  b.insert(2, 0);
-  b.insert(3, 100);
-  b.insert(1000, 42);
+  using vec = std::pair<int, int>;
+  bimap<vec, vec, vector_compare, vector_compare> b(
+      (vector_compare(vector_compare::manhattan)));
+  b.insert({0, 1}, {35, 3});
+  b.insert({20, -20}, {20, -20});
+  b.insert({35, 3}, {3, -1});
+  b.insert({3, -1}, {0, 1});
 
-  std::vector<int> correct_left = {3, 2, 0, 1000};
-  std::vector<int> correct_right = {0, 10, 42, 100};
+  std::vector<vec> correct_left = {{0, 1}, {3, -1}, {35, 3}, {20, -20}};
+  std::vector<vec> correct_right = {{0, 1}, {3, -1}, {20, -20}, {35, 3}};
   auto lit = b.begin_left();
   auto rit = b.begin_right();
   for (int i = 0; i < 4; i++) {
