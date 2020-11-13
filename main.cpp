@@ -47,6 +47,49 @@ TEST(bimap, custom_comparator) {
   }
 }
 
+struct vector_compare {
+  using vec = std::pair<int, int>;
+  enum distance_type { euclidean, manhattan };
+
+  explicit vector_compare(distance_type p = euclidean) : type(p) {}
+
+  bool operator()(vec a, vec b) const {
+    if (type == euclidean) {
+      return euc(a) < euc(b);
+    } else {
+      return man(a) < man(b);
+    }
+  }
+
+private:
+  static double euc(vec x) {
+    return sqrt(x.first * x.first + x.second * x.second);
+  }
+
+  static double man(vec x) { return abs(x.first) + abs(x.second); }
+
+  distance_type type;
+};
+
+TEST(bimap, custom_parametrized_comparator) {
+  using vec = std::pair<int, int>;
+  bimap<vec, vec, vector_compare, vector_compare> b(
+      (vector_compare(vector_compare::manhattan)));
+  b.insert({0, 1}, {35, 3});
+  b.insert({20, -20}, {20, -20});
+  b.insert({35, 3}, {3, -1});
+  b.insert({3, -1}, {0, 1});
+
+  std::vector<vec> correct_left = {{0, 1}, {3, -1}, {35, 3}, {20, -20}};
+  std::vector<vec> correct_right = {{0, 1}, {3, -1}, {20, -20}, {35, 3}};
+  auto lit = b.begin_left();
+  auto rit = b.begin_right();
+  for (int i = 0; i < 4; i++) {
+    EXPECT_EQ(*lit++, correct_left[i]);
+    EXPECT_EQ(*rit++, correct_right[i]);
+  }
+}
+
 TEST(bimap, copies) {
   bimap<int, int> b;
   b.insert(3, 4);
@@ -92,6 +135,27 @@ TEST(bimap, at) {
   EXPECT_THROW(b.at_right(300), std::out_of_range);
   EXPECT_EQ(b.at_left(4), 3);
   EXPECT_EQ(b.at_right(3), 4);
+}
+
+TEST(bimap, at_or_default) {
+  bimap<int, int> b;
+  b.insert(4, 2);
+
+  EXPECT_EQ(b.at_left_or_default(5), 0);
+  EXPECT_EQ(b.at_right(0), 5);
+
+  EXPECT_EQ(b.at_right_or_default(1), 0);
+  EXPECT_EQ(b.at_left(0), 1);
+
+  // b has (5, 0)
+  EXPECT_EQ(b.at_left_or_default(42), 0);
+  // (5, 0) is replaced with (42, 0)
+  EXPECT_EQ(b.at_right(0), 42);
+
+  // b has (0, 1)
+  EXPECT_EQ(b.at_right_or_default(1000), 0);
+  // (0, 1) is replaced with (0, 1000)
+  EXPECT_EQ(b.at_left(0), 1000);
 }
 
 TEST(bimap, find) {
