@@ -51,8 +51,7 @@ struct vector_compare {
   using vec = std::pair<int, int>;
   enum distance_type { euclidean, manhattan };
 
-  vector_compare() = default;
-  explicit vector_compare(distance_type p) : type(p) {}
+  explicit vector_compare(distance_type p = euclidean) : type(p) {}
 
   bool operator()(vec a, vec b) const {
     if (type == euclidean) {
