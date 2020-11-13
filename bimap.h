@@ -39,7 +39,7 @@ struct bimap {
 
   // Создает bimap не содержащий ни одной пары.
   bimap(CompareLeft compare_left = CompareLeft(),
-        CompareRight compare_right = CompareRight()) noexcept;
+        CompareRight compare_right = CompareRight());
 
   // Конструкторы от других и присваивания
   bimap(bimap const &other);
