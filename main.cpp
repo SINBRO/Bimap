@@ -298,7 +298,7 @@ eliminate_same(std::vector<T> &lefts, std::vector<T> &rights, std::mt19937 &e) {
 }
 
 struct non_default_constructible {
-  non_default_constructible() = default;
+  non_default_constructible() = delete;
   explicit non_default_constructible(int b) : a(b) {}
   non_default_constructible(non_default_constructible const &) = default;
   friend bool operator<(non_default_constructible const &c, non_default_constructible const &b) {
