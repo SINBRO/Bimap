@@ -383,3 +383,35 @@ TEST(bimap_randomized, compare_to_two_maps) {
   std::cout << "Performed " << ins << " insertions and " << total - ins - skip
             << " erasures. " << skip << " skipped." << std::endl;
 }
+
+TEST(bimap, assigment) {
+  bimap<int, int> a;
+  a.insert(1, 4);
+  a.insert(8, 8);
+  a.insert(25, 17);
+  a.insert(13, 37);
+  auto b = a;
+  EXPECT_EQ(a.size(), b.size());
+  EXPECT_EQ(a, b);
+  a = a;
+  b = std::move(b);
+  EXPECT_EQ(a.size(), b.size());
+  EXPECT_EQ(a, b);
+}
+
+TEST(bimap, equivalence) {
+  bimap<int, int> a;
+  bimap<int, int> b;
+  a.insert(1, 2);
+  a.insert(3, 4);
+  b.insert(1, 2);
+  EXPECT_NE(a, b);
+
+  b.erase_left(1);
+  b.insert(1, 4);
+  b.insert(3, 2);
+  EXPECT_NE(a, b);
+
+  EXPECT_EQ(a.end_left().flip(), a.end_right());
+  EXPECT_EQ(a.end_right().flip(), a.end_left());
+}
