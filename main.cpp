@@ -1,20 +1,8 @@
-#include "bimap.h"
-
-#include "gtest/gtest.h"
 #include <random>
 
-struct test_object {
-  int a = 0;
-  test_object() = default;
-  explicit test_object(int b) : a(b) {}
-  test_object(test_object &&other) noexcept { std::swap(a, other.a); }
-  friend bool operator<(test_object const &c, test_object const &b) {
-    return c.a < b.a;
-  }
-  friend bool operator==(test_object const &c, test_object const &b) {
-    return c.a == b.a;
-  }
-};
+#include "bimap.h"
+#include "test-classes.h"
+#include "gtest/gtest.h"
 
 TEST(bimap, leak_check) {
   bimap<int, int> b;
@@ -46,30 +34,6 @@ TEST(bimap, custom_comparator) {
     EXPECT_LT(prev, *it);
   }
 }
-
-struct vector_compare {
-  using vec = std::pair<int, int>;
-  enum distance_type { euclidean, manhattan };
-
-  explicit vector_compare(distance_type p = euclidean) : type(p) {}
-
-  bool operator()(vec a, vec b) const {
-    if (type == euclidean) {
-      return euc(a) < euc(b);
-    } else {
-      return man(a) < man(b);
-    }
-  }
-
-private:
-  static double euc(vec x) {
-    return sqrt(x.first * x.first + x.second * x.second);
-  }
-
-  static double man(vec x) { return abs(x.first) + abs(x.second); }
-
-  distance_type type;
-};
 
 TEST(bimap, custom_parametrized_comparator) {
   using vec = std::pair<int, int>;
@@ -296,20 +260,6 @@ eliminate_same(std::vector<T> &lefts, std::vector<T> &rights, std::mt19937 &e) {
 
   return res;
 }
-
-struct non_default_constructible {
-  non_default_constructible() = delete;
-  explicit non_default_constructible(int b) : a(b) {}
-  non_default_constructible(non_default_constructible const &) = default;
-  friend bool operator<(non_default_constructible const &c, non_default_constructible const &b) {
-    return c.a < b.a;
-  }
-  friend bool operator==(non_default_constructible const &c, non_default_constructible const &b) {
-    return c.a == b.a;
-  }
-private:
-  int a;
-};
 
 template struct bimap<int, non_default_constructible>;
 template struct bimap<non_default_constructible, int>;
