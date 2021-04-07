@@ -9,7 +9,7 @@ template <typename T, typename Tag> struct node_tree {
   node_tree *left = nullptr;
   node_tree *right = nullptr;
 
-  T* key_;
+  T* key_ = nullptr;
 
   inline T const & get_key() const noexcept {
     return *key_;

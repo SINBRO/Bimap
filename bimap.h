@@ -359,7 +359,7 @@ private:
     if (treap_->is_last(res)) {
       throw std::out_of_range("Key not found");
     }
-    return static_cast<node_other<Tag> *>(static_cast<node_t *>(res))
+    return static_cast<node_other<Tag> *>(static_cast<node_t_base *>(res))
         ->get_key();
   }
 
@@ -440,8 +440,9 @@ private:
 
   template <typename Tag>
   void validate_end(node_<Tag> *base, treap_t<Tag> &tree) noexcept {
-    base->left = tree.root();
     base->parent = nullptr;
+    base->right = nullptr;
+    base->left = tree.root();
     tree.storage.end_elem = base;
     tree.set_parent(tree.root(), base);
   }
