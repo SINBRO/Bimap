@@ -17,6 +17,7 @@ struct bimap {
   using node_left = node_tree<left_t, tag_left>;
   using node_right = node_tree<right_t, tag_right>;
 
+private:
   template <typename Tag>
   static constexpr bool is_left = std::is_same_v<Tag, tag_left>;
 
@@ -38,17 +39,17 @@ struct bimap {
 
   template <typename Tag> using node_other = node_<tag_other<Tag>>;
 
+  struct node_t_base : node_left, node_right {
+    node_t_base(left_t *l, right_t *r) : node_left(l), node_right(r) {}
+  };
+
   struct node_t : node_left, node_right {
+    left_t key_left;
+    right_t key_right;
+
     node_t(left_t l, right_t r)
-        : node_left(std::move(l)), node_right(std::move(r)) {}
-
-    //    template <class Tag> auto &get_key() const {
-    //      return static_cast<const node_<Tag> *>(this)->key;
-    //    }
-
-    /*inline right_t right_key() const { return get_key<tag_right>(); }
-
-    inline left_t left_key() const { return get_key<tag_left>(); }*/
+        : node_left(&key_left), node_right(&key_right), key_left(std::move(l)),
+          key_right(std::move(r)) {}
   };
 
   template <typename Tag> struct iterator {
@@ -70,7 +71,7 @@ struct bimap {
     // Элемент на который сейчас ссылается итератор.
     // Разыменование итератора end_left() неопределено.
     // Разыменование невалидного итератора неопределено.
-    key_t<Tag> const &operator*() const noexcept { return node->key; }
+    key_t<Tag> const &operator*() const noexcept { return node->get_key(); }
 
     // Переход к следующему по величине left'у.
     // Инкремент итератора end_left() неопределен.
@@ -107,7 +108,7 @@ struct bimap {
     // flip() невалидного итератора неопределен.
     iterator_other flip() const noexcept {
       return iterator_other(
-          static_cast<node_other<Tag> *>(static_cast<node_t *>(node)));
+          static_cast<node_other<Tag> *>(static_cast<node_t_base *>(node)));
     }
 
     bool operator==(iterator const &other) const noexcept {
@@ -119,21 +120,26 @@ struct bimap {
     }
   };
 
+public:
   using left_iterator = iterator<tag_left>;
   using right_iterator = iterator<tag_right>;
 
   // Создает bimap не содержащий ни одной пары.
   explicit bimap(CompareLeft compare_left = CompareLeft(),
                  CompareRight compare_right = CompareRight())
-      : treap_left(compare_left, reinterpret_cast<node_left*>(end_place)),
-        treap_right(compare_right, reinterpret_cast<node_right *>(end_place)) {
+      : treap_left(std::move(compare_left),
+                   reinterpret_cast<node_left *>(&end_place)),
+        treap_right(std::move(compare_right),
+                    reinterpret_cast<node_right *>(&end_place)) {
     validate_ends();
   };
 
   // Конструкторы от других и присваивания
   bimap(bimap const &other)
-      : treap_left(other.treap_left.cmp, reinterpret_cast<node_left*>(end_place)),
-        treap_right(other.treap_right.cmp, reinterpret_cast<node_right *>(end_place)) {
+      : treap_left(std::move(other.treap_left.get_cmp()),
+                   reinterpret_cast<node_left *>(&end_place)),
+        treap_right(std::move(other.treap_right.get_cmp()),
+                    reinterpret_cast<node_right *>(&end_place)) {
     try {
       validate_ends();
       insert_all(other);
@@ -154,9 +160,14 @@ struct bimap {
     if (&other == this) {
       return *this;
     }
-    erase_all();
-    insert_all(other);
-    return *this;
+    try {
+      erase_all();
+      insert_all(other);
+      return *this;
+    } catch (...) {
+      erase_all();
+      throw;
+    }
   };
 
   bimap &operator=(bimap &&other) noexcept {
@@ -177,23 +188,19 @@ struct bimap {
   // Если такой left или такой right уже присутствуют в bimap, вставка не
   // производится и возвращается end_left().
   left_iterator insert(left_t const &left, right_t const &right) {
-    return insert_impl(std::forward<const left_t>(left),
-                       std::forward<const right_t>(right));
+    return insert_impl(left, right);
   }
 
   left_iterator insert(left_t const &left, right_t &&right) {
-    return insert_impl(std::forward<const left_t>(left),
-                       std::forward<right_t>(right));
+    return insert_impl(left, std::move(right));
   }
 
   left_iterator insert(left_t &&left, right_t const &right) {
-    return insert_impl(std::forward<left_t>(left),
-                       std::forward<const right_t>(right));
+    return insert_impl(std::move(left), right);
   }
 
   left_iterator insert(left_t &&left, right_t &&right) {
-    return insert_impl(std::forward<left_t>(left),
-                       std::forward<right_t>(right));
+    return insert_impl(std::move(left), std::move(right));
   }
 
   // Удаляет элемент и соответствующий ему парный.
@@ -238,6 +245,7 @@ struct bimap {
     return right_iterator(treap_right.find(right));
   }
 
+private:
   template <typename Tag> iterator<Tag> find(const key_t<Tag> &key) const {
     if constexpr (is_left<Tag>) {
       return find_left(key);
@@ -254,6 +262,7 @@ struct bimap {
     }
   }
 
+public:
   // Возвращает противоположный элемент по элементу
   // Если элемента не существует -- бросает std::out_of_range
   right_t const &at_left(left_t const &key) const { return at<tag_left>(key); }
@@ -329,6 +338,7 @@ struct bimap {
   template <typename TL, typename TR, typename CompL, typename CompR>
   friend bool operator!=(bimap const &a, bimap const &b);
 
+private:
   template <typename Tag> bool contains(const key_t<Tag> &key) const noexcept {
     if constexpr (is_left<Tag>) {
       return find_left(key) != end_left();
@@ -349,7 +359,8 @@ struct bimap {
     if (treap_->is_last(res)) {
       throw std::out_of_range("Key not found");
     }
-    return static_cast<node_other<Tag> *>(static_cast<node_t *>(res))->key;
+    return static_cast<node_other<Tag> *>(static_cast<node_t *>(res))
+        ->get_key();
   }
 
   template <typename Tag>
@@ -369,10 +380,7 @@ struct bimap {
     }
   }
 
-private:
-  void erase_all() {
-    erase_left(begin_left(), end_left());
-  }
+  void erase_all() { erase_left(begin_left(), end_left()); }
 
   void insert_all(const bimap &other) {
     for (left_iterator iter = other.begin_left(); iter != other.end_left();
@@ -425,23 +433,23 @@ private:
   }
 
   void validate_ends() noexcept {
-    auto *end_node = reinterpret_cast<node_t *>(end_place);
+    auto *end_node = reinterpret_cast<node_t_base *>(&end_place);
     validate_end(static_cast<node_left *>(end_node), treap_left);
     validate_end(static_cast<node_right *>(end_node), treap_right);
   }
 
   template <typename Tag>
-  void validate_end(node_<Tag>* base, treap_t<Tag>& tree) noexcept {
-    base->left = tree.root;
+  void validate_end(node_<Tag> *base, treap_t<Tag> &tree) noexcept {
+    base->left = tree.root();
     base->parent = nullptr;
-    tree.end_elem = base;
-    tree.set_parent(tree.root, base);
+    tree.storage.end_elem = base;
+    tree.set_parent(tree.root(), base);
   }
 
   treap<left_t, CompareLeft, tag_left> treap_left;
   treap<right_t, CompareRight, tag_right> treap_right;
   size_t size_ = 0;
-  char end_place[sizeof(node_t)]{};
+  std::aligned_storage_t<sizeof(node_t_base), alignof(node_t_base)> end_place;
 };
 
 template <typename TL, typename TR, typename CompL, typename CompR>

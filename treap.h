@@ -1,5 +1,6 @@
 #pragma once
 
+#include <limits>
 #include <random>
 #include <stdexcept>
 
@@ -8,14 +9,15 @@ template <typename T, typename Tag> struct node_tree {
   node_tree *left = nullptr;
   node_tree *right = nullptr;
 
-  T key;
+  T* key_;
 
-  int priority = rand();
+  inline T const & get_key() const noexcept {
+    return *key_;
+  }
 
-  explicit node_tree(T key) : key(std::move(key)) {}
+  int priority = random_priority();
 
-  // explicit node_tree(T&& key) : key(std::move(key)) {}
-
+  explicit node_tree(T* key) : key_(key) {}
 
   node_tree *next() noexcept {
     node_tree *cur = this;
@@ -51,40 +53,75 @@ template <typename T, typename Tag> struct node_tree {
     return cur;
   }
 
+private:
+  static int random_priority() {
+    static std::default_random_engine generator(time(nullptr));
+    static std::uniform_int_distribution<int> distribution;
+    return distribution(generator);
+  }
 };
 
 template <typename T, typename Comparator, typename Tag> struct treap {
   using node_t_ = node_tree<T, Tag>;
 
-  Comparator cmp = Comparator();
-  node_t_ *root = nullptr;
-  // this is to have a common "end" node for all trees
-  // memory control is on treap user
-  node_t_ *end_elem = nullptr;
+  // to implement empty base optimisation in case comparator is an empty class
+  struct treap_storage : Comparator {
+    // this is to have a common "end" node for all trees
+    // memory control is on treap user
+    node_t_ *end_elem = nullptr;
+
+    treap_storage() : Comparator() {}
+
+    treap_storage(treap_storage const &other) = default;
+
+    treap_storage(treap_storage &&other) noexcept
+        : Comparator(std::move(other)) {
+      std::swap(end_elem, other.end_elem);
+    }
+
+    treap_storage(Comparator comparator, node_t_ *end)
+        : Comparator(std::move(comparator)), end_elem(end) {}
+
+    treap_storage& operator=(treap_storage && other) noexcept {
+      swap(other);
+      return *this;
+    }
+
+    void swap(treap_storage & other) noexcept {
+      std::swap<Comparator>(*this, other);
+      std::swap(end_elem, other.end_elem);
+    }
+  };
+
+  treap_storage storage;
 
   treap() = default;
 
-  explicit treap(Comparator comparator, node_t_* end) : cmp(comparator), end_elem(end) { init_end(); }
-
-
-  treap(treap &&other) noexcept : cmp(std::move(other.cmp)) {
-    std::swap(root, other.root);
-    std::swap(end_elem, other.end_elem);
+  explicit treap(Comparator comparator, node_t_ *end)
+      : storage(std::move(comparator), end) {
     init_end();
-    other.init_end();
+  }
+
+  inline node_t_ * end_elem() const {
+    return storage.end_elem;
+  }
+
+  inline Comparator get_cmp() const {
+      return static_cast<Comparator>(storage);
+  }
+
+  treap(treap &&other) noexcept : storage(std::move(other.storage)) {
   }
 
   treap &operator=(treap &&other) noexcept {
-    std::swap(root, other.root);
-    std::swap(end_elem, other.end_elem);
-    cmp = std::move(other.cmp);
-    reconnect_end();
-    other.reconnect_end();
+    storage = std::move(other.storage);
     return *this;
   }
 
+  inline node_t_ *root() const { return end_elem()->left; }
+
   bool less(const T &key1, const T &key2) const noexcept {
-    return cmp(key1, key2);
+    return static_cast<Comparator>(storage)(key1, key2);
   }
 
   static inline void set_parent(node_t_ *child, node_t_ *parent) noexcept {
@@ -97,7 +134,7 @@ template <typename T, typename Comparator, typename Tag> struct treap {
     if (node == nullptr) {
       return std::pair(nullptr, nullptr);
     }
-    if (less(node->key, key)) { // (key > node->key) {
+    if (less(node->get_key(), key)) { // (key > node->key) {
       auto split_r = split(node->right, key);
       node->right = split_r.first;
       set_parent(split_r.first, node);
@@ -134,14 +171,14 @@ template <typename T, typename Comparator, typename Tag> struct treap {
     if (tree == nullptr)
       return node;
     if (node->priority > tree->priority) {
-      auto split_tree = split(tree, node->key);
+      auto split_tree = split(tree, node->get_key());
       node->left = split_tree.first;
       set_parent(split_tree.first, node);
       node->right = split_tree.second;
       set_parent(split_tree.second, node);
       return node;
     }
-    if (less(node->key, tree->key)) {
+    if (less(node->get_key(), tree->get_key())) {
       tree->left = insert(tree->left, node);
       tree->left->parent = tree;
       return tree;
@@ -152,7 +189,7 @@ template <typename T, typename Comparator, typename Tag> struct treap {
   }
 
   void insert(node_t_ *node) {
-    root = insert(root, node);
+    end_elem()->left = insert(root(), node);
     reconnect_end();
   }
 
@@ -161,7 +198,7 @@ template <typename T, typename Comparator, typename Tag> struct treap {
     node_t_ *par = node->parent;
     node_t_ *res = merge(node->left, node->right);
     set_parent(res, par);
-    if (par == end_elem) {
+    if (par == end_elem()) {
       par->left = res;
       return res;
     }
@@ -175,7 +212,7 @@ template <typename T, typename Comparator, typename Tag> struct treap {
 
   node_t_ *remove(node_t_ *node) {
     auto res = node->next();
-    root = remove(root, node);
+    end_elem()->left = remove(root(), node);
     reconnect_end();
     return res;
   }
@@ -187,23 +224,23 @@ template <typename T, typename Comparator, typename Tag> struct treap {
 
   node_t_ *find(const T &key, node_t_ *node) const noexcept {
     while (node != nullptr) {
-      if (less(node->key, key)) {
+      if (less(node->get_key(), key)) {
         node = node->right;
-      } else if (less(key, node->key)) {
+      } else if (less(key, node->get_key())) {
         node = node->left;
       } else {
         return node;
       }
     }
-    return end_elem;
+    return end_elem();
   }
 
-  node_t_ *find(const T &key) const noexcept { return find(key, root); }
+  node_t_ *find(const T &key) const noexcept { return find(key, root()); }
 
   node_t_ *lower_bound(const T &key, node_t_ *node) const noexcept {
     node_t_ *res = nullptr;
     while (node != nullptr) {
-      if (!less(node->key, key)) {
+      if (!less(node->get_key(), key)) {
         res = node;
         node = node->left;
       } else {
@@ -211,19 +248,19 @@ template <typename T, typename Comparator, typename Tag> struct treap {
       }
     }
     if (res == nullptr) {
-      return end_elem;
+      return end_elem();
     }
     return res;
   }
 
   node_t_ *lower_bound(const T &key) const noexcept {
-    return lower_bound(key, root);
+    return lower_bound(key, root());
   }
 
   node_t_ *upper_bound(const T &key, node_t_ *node) const noexcept {
     node_t_ *res = nullptr;
     while (node != nullptr) {
-      if (less(key, node->key)) {
+      if (less(key, node->get_key())) {
         res = node;
         node = node->left;
       } else {
@@ -231,45 +268,36 @@ template <typename T, typename Comparator, typename Tag> struct treap {
       }
     }
     if (res == nullptr) {
-      return end_elem;
+      return end_elem();
     }
     return res;
   }
 
   node_t_ *upper_bound(const T &key) const noexcept {
-    return upper_bound(key, root);
+    return upper_bound(key, root());
   }
 
   node_t_ *first() const noexcept {
-    auto res = end_elem;
+    auto res = end_elem();
     while (res->left != nullptr) {
       res = res->left;
     }
     return res;
   }
 
-  node_t_ *last() const noexcept {
-    return end_elem;
-  }
+  node_t_ *last() const noexcept { return end_elem(); }
 
   inline bool is_last(node_t_ const *node) const noexcept {
-    return end_elem == node;
+    return end_elem() == node;
   }
-
-  //  ~treap() {
-  //    delete root;
-  //  }
 
 private:
   void init_end() noexcept {
-    end_elem->right = nullptr;
-    end_elem->parent = nullptr;
-    reconnect_end();
-    end_elem->priority = std::numeric_limits<int>::max();
+    end_elem()->left = nullptr;
+    end_elem()->right = nullptr;
+    end_elem()->parent = nullptr;
+    end_elem()->priority = std::numeric_limits<int>::max();
   }
 
-  inline void reconnect_end() noexcept {
-    end_elem->left = root;
-    set_parent(root, end_elem);
-  }
+  inline void reconnect_end() noexcept { set_parent(end_elem()->left, end_elem()); }
 };
