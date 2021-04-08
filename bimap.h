@@ -174,22 +174,17 @@ public:
     if (&other == this) {
       return *this;
     }
-    try {
-      erase_all();
-      insert_all(other);
-      return *this;
-    } catch (...) {
-      erase_all();
-      throw;
-    }
+
+    bimap copied = bimap(other); // can be an exception here
+    *this = std::move(copied);   // no exceptions here
+    return *this;
+
   };
 
   bimap &operator=(bimap &&other) noexcept {
     treap_left = std::move(other.treap_left); // is full swap
     treap_right = std::move(other.treap_right);
     std::swap(size_, other.size_);
-    validate_ends();
-    other.validate_ends();
     return *this;
   };
 
