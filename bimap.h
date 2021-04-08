@@ -39,18 +39,30 @@ private:
 
   template <typename Tag> using node_other = node_<tag_other<Tag>>;
 
+  // base exists to allow storing fake element without storing keys for it
   struct node_t_base : node_left, node_right {
-    node_t_base(left_t *l, right_t *r) : node_left(l), node_right(r) {}
+    node_t_base() = default;
   };
 
-  struct node_t : node_left, node_right {
+  struct node_t : node_t_base {
     left_t key_left;
     right_t key_right;
 
     node_t(left_t l, right_t r)
-        : node_left(&key_left), node_right(&key_right), key_left(std::move(l)),
-          key_right(std::move(r)) {}
+        : key_left(std::move(l)), key_right(std::move(r)) {}
   };
+
+  // note: I know that lambdas should be generally faster for this, but I faced
+  // what appears to be a gcc bug very similar to this:
+  // http://www.cplusplus.com/forum/beginner/130564/
+  // btw tests are passing ~5% slower, so doesn't look like a big problem
+  template <typename Tag> static key_t<Tag> &key_getter(node_<Tag> *node) {
+    if constexpr (is_left<Tag>) {
+      return static_cast<node_t *>(node)->key_left;
+    } else {
+      return static_cast<node_t *>(node)->key_right;
+    }
+  }
 
   template <typename Tag> struct iterator {
     using node_it = node_tree<key_t<Tag>, Tag>;
@@ -71,7 +83,9 @@ private:
     // Элемент на который сейчас ссылается итератор.
     // Разыменование итератора end_left() неопределено.
     // Разыменование невалидного итератора неопределено.
-    key_t<Tag> const &operator*() const noexcept { return node->get_key(); }
+    key_t<Tag> const &operator*() const noexcept {
+      return key_getter<Tag>(node);
+    }
 
     // Переход к следующему по величине left'у.
     // Инкремент итератора end_left() неопределен.
@@ -128,18 +142,18 @@ public:
   explicit bimap(CompareLeft compare_left = CompareLeft(),
                  CompareRight compare_right = CompareRight())
       : treap_left(std::move(compare_left),
-                   reinterpret_cast<node_left *>(&end_place)),
+                   static_cast<node_left *>(&end_node)),
         treap_right(std::move(compare_right),
-                    reinterpret_cast<node_right *>(&end_place)) {
+                    static_cast<node_right *>(&end_node)) {
     validate_ends();
   };
 
   // Конструкторы от других и присваивания
   bimap(bimap const &other)
       : treap_left(std::move(other.treap_left.get_cmp()),
-                   reinterpret_cast<node_left *>(&end_place)),
+                   static_cast<node_left *>(&end_node)),
         treap_right(std::move(other.treap_right.get_cmp()),
-                    reinterpret_cast<node_right *>(&end_place)) {
+                    static_cast<node_right *>(&end_node)) {
     try {
       validate_ends();
       insert_all(other);
@@ -238,11 +252,11 @@ public:
 
   // Возвращает итератор по элементу. Если не найден - соответствующий end()
   left_iterator find_left(left_t const &left) const {
-    return left_iterator(treap_left.find(left));
+    return left_iterator(treap_left.find(left, &key_getter<tag_left>));
   }
 
   right_iterator find_right(right_t const &right) const {
-    return right_iterator(treap_right.find(right));
+    return right_iterator(treap_right.find(right, &key_getter<tag_right>));
   }
 
 private:
@@ -292,19 +306,21 @@ public:
   // Возвращают итераторы на соответствующие элементы
   // Смотри std::lower_bound, std::upper_bound.
   left_iterator lower_bound_left(const left_t &left) const {
-    return left_iterator(treap_left.lower_bound(left));
+    return left_iterator(treap_left.lower_bound(left, &key_getter<tag_left>));
   };
 
   left_iterator upper_bound_left(const left_t &left) const {
-    return left_iterator(treap_left.upper_bound(left));
+    return left_iterator(treap_left.upper_bound(left, &key_getter<tag_left>));
   }
 
   right_iterator lower_bound_right(const right_t &right) const {
-    return right_iterator(treap_right.lower_bound(right));
+    return right_iterator(
+        treap_right.lower_bound(right, &key_getter<tag_right>));
   }
 
   right_iterator upper_bound_right(const right_t &right) const {
-    return right_iterator(treap_right.upper_bound(right));
+    return right_iterator(
+        treap_right.upper_bound(right, &key_getter<tag_right>));
   }
 
   // Возващает итератор на минимальный по порядку left.
@@ -355,12 +371,12 @@ private:
     } else {
       treap_ = &treap_right;
     }
-    auto res = treap_->find(key);
+    auto res = treap_->find(key, &key_getter<Tag>);
     if (treap_->is_last(res)) {
       throw std::out_of_range("Key not found");
     }
-    return static_cast<node_other<Tag> *>(static_cast<node_t_base *>(res))
-        ->get_key();
+    return key_getter<tag_other<Tag>>(
+        static_cast<node_other<Tag> *>(static_cast<node_t_base *>(res)));
   }
 
   template <typename Tag>
@@ -395,8 +411,8 @@ private:
       return end_left();
     }
     auto *node = new node_t(std::forward<T1>(left), std::forward<T2>(right));
-    treap_left.insert(node);
-    treap_right.insert(node);
+    treap_left.insert(node, &key_getter<tag_left>);
+    treap_right.insert(node, &key_getter<tag_right>);
     ++size_;
     return left_iterator(node);
   }
@@ -416,7 +432,7 @@ private:
 
   template <typename Tag>
   bool erase_impl(const key_t<Tag> &key, treap_t<Tag> &tree) {
-    auto *node = tree.find(key);
+    auto *node = tree.find(key, &key_getter<Tag>);
     if (tree.is_last(node)) {
       return false;
     }
@@ -433,9 +449,8 @@ private:
   }
 
   void validate_ends() noexcept {
-    auto *end_node = reinterpret_cast<node_t_base *>(&end_place);
-    validate_end(static_cast<node_left *>(end_node), treap_left);
-    validate_end(static_cast<node_right *>(end_node), treap_right);
+    validate_end(static_cast<node_left *>(&end_node), treap_left);
+    validate_end(static_cast<node_right *>(&end_node), treap_right);
   }
 
   template <typename Tag>
@@ -450,7 +465,7 @@ private:
   treap<left_t, CompareLeft, tag_left> treap_left;
   treap<right_t, CompareRight, tag_right> treap_right;
   size_t size_ = 0;
-  std::aligned_storage_t<sizeof(node_t_base), alignof(node_t_base)> end_place;
+  node_t_base end_node;
 };
 
 template <typename TL, typename TR, typename CompL, typename CompR>
