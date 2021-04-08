@@ -150,9 +150,9 @@ public:
 
   // Конструкторы от других и присваивания
   bimap(bimap const &other)
-      : treap_left(std::move(other.treap_left.get_cmp()),
+      : treap_left(other.treap_left.get_cmp(),
                    static_cast<node_left *>(&end_node)),
-        treap_right(std::move(other.treap_right.get_cmp()),
+        treap_right(other.treap_right.get_cmp(),
                     static_cast<node_right *>(&end_node)) {
     try {
       validate_ends();
@@ -175,16 +175,18 @@ public:
       return *this;
     }
 
-    bimap copied = bimap(other); // can be an exception here
-    *this = std::move(copied);   // no exceptions here
+    bimap copied(other);       // can be an exception here
+    *this = std::move(copied); // no exceptions here
     return *this;
-
   };
 
   bimap &operator=(bimap &&other) noexcept {
-    treap_left = std::move(other.treap_left); // is full swap
+    treap_left = std::move(other.treap_left);
+    ; // is full swap
     treap_right = std::move(other.treap_right);
     std::swap(size_, other.size_);
+    validate_ends();
+    other.validate_ends();
     return *this;
   };
 
@@ -454,7 +456,7 @@ private:
     base->right = nullptr;
     base->left = tree.root();
     tree.storage.end_elem = base;
-    tree.set_parent(tree.root(), base);
+    tree.set_parent(base->left, base);
   }
 
   treap<left_t, CompareLeft, tag_left> treap_left;
