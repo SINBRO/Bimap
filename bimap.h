@@ -65,13 +65,6 @@ private:
   }
 
   template <typename Tag> struct iterator {
-    using node_it = node_tree<key_t<Tag>, Tag>;
-    using iterator_other = iterator<tag_other<Tag>>;
-
-    node_it *node = nullptr;
-
-    explicit iterator(node_it *node) : node(node) {}
-
     iterator(const iterator &other) : node(other.node) {}
 
     iterator &operator=(const iterator &other) {
@@ -79,6 +72,17 @@ private:
       return *this;
     }
 
+  private:
+    using iterator_other = iterator<tag_other<Tag>>;
+    using node_it = node_tree<key_t<Tag>, Tag>;
+
+    explicit iterator(node_it *node) : node(node) {}
+
+    node_it *node = nullptr;
+
+    friend bimap;
+
+  public:
     // Далее в комментариях итератора вместо left можно подставить key_t
     // Элемент на который сейчас ссылается итератор.
     // Разыменование итератора end_left() неопределено.
@@ -175,18 +179,12 @@ public:
       return *this;
     }
 
-    bimap copied(other);       // can be an exception here
-    *this = std::move(copied); // no exceptions here
+    bimap(other).swap(*this);
     return *this;
   };
 
   bimap &operator=(bimap &&other) noexcept {
-    treap_left = std::move(other.treap_left);
-    ; // is full swap
-    treap_right = std::move(other.treap_right);
-    std::swap(size_, other.size_);
-    validate_ends();
-    other.validate_ends();
+    swap(other);
     return *this;
   };
 
@@ -257,6 +255,14 @@ public:
   }
 
 private:
+  void swap(bimap &other) noexcept {
+    treap_left.swap(other.treap_left);
+    treap_right.swap(other.treap_right);
+    std::swap(size_, other.size_);
+    validate_ends();
+    other.validate_ends();
+  }
+
   template <typename Tag> iterator<Tag> find(const key_t<Tag> &key) const {
     if constexpr (is_left<Tag>) {
       return find_left(key);

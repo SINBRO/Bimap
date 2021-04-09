@@ -104,6 +104,8 @@ template <typename T, typename Comparator, typename Tag> struct treap {
     return *this;
   }
 
+  void swap(treap &other) noexcept { storage.swap(other.storage); }
+
   inline node_t_ *root() const { return last()->left; }
 
   bool less(const T &key1, const T &key2) const noexcept {
